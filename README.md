@@ -1,111 +1,142 @@
-# Genesis Media Engine
-
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/genesis-media-engine/genesis/actions/workflows/test.yml/badge.svg)](https://github.com/genesis-media-engine/genesis/actions/workflows/test.yml)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-DSL-driven media generation engine with FFmpeg rendering, plugin system, and provenance tracking.
+# Genesis Media Engine
 
-## What is Genesis?
+**DSL-driven media generation engine** with FFmpeg rendering, plugin system, and provenance tracking. Write scene scripts in a declarative DSL, render with native or GPU-accelerated pipelines, and verify output with security gates.
 
-Genesis is a standalone engine that converts structured scene descriptions (DSL) into rendered video output. It was extracted from a larger experimental system — all CODA-specific cognitive pipelines, agent references, and internal coupling have been removed.
+## Features
 
-The core insight: describe your scene in a simple JSON-like DSL, validate it, plan it, and render it — all with traceable provenance from scene to pixel.
+- **Declarative DSL** — describe scenes, transitions, and effects in YAML/JSON scripts
+- **Plugin System** — load, sandbox, and manage rendering plugins with manifest validation
+- **Security Gates** — benchmark, credibility, and final output validation before delivery
+- **FFmpeg Rendering** — native FFmpeg integration for video/audio/image output
+- **Provenance Tracking** — full audit trail from scene script to final output
+- **Scene Validation** — schema-based validation of scene descriptions before rendering
+- **Fusion Modes** — multiple rendering strategies (sequential, parallel, adaptive)
 
-## Scene DSL Example
+## Install
 
-```python
-from genesis.dsl import parse_scene_request, validate_scene
-
-scene = parse_scene_request("Create a 30 second product showcase in 16:9")
-result = validate_scene(scene)
-if result["approved"]:
-    print(f"Ready: {scene.title} ({scene.constraints.duration_seconds}s)")
+```bash
+pip install genesis-media-engine
 ```
 
-A scene has beats (timeline segments), assets (media elements), and constraints (duration, aspect ratio, style).
+### Optional extras
+
+```bash
+pip install "genesis-media-engine[all]"    # moviepy + diffusers + torch
+```
+
+## Quickstart
+
+```python
+from genesis.dsl.scene_parser import SceneParser
+from genesis.plugins.plugin_loader import PluginLoader
+
+# Define a scene
+scene = """
+scene:
+  name: "intro"
+  duration: 10
+  layers:
+    - type: image
+      source: "background.png"
+      opacity: 1.0
+    - type: text
+      content: "Hello World"
+      position: center
+      animation: fade_in
+"""
+
+# Parse and render
+parser = SceneParser()
+parsed = parser.parse(scene)
+# Render with FFmpeg or plugin pipeline
+```
 
 ## Architecture
 
 ```
-┌──────────┐    ┌─────────────┐    ┌──────────────────────────┐
-│  Scene   │ →  │   Validate  │ →  │  Render Plan (Native /   │
-│  DSL     │    │  + Plan     │    │  Fusion / Plugin)        │
-└──────────┘    └─────────────┘    └───────────┬──────────────┘
-                                               ↓
-┌──────────┐    ┌─────────────┐    ┌──────────────────────────┐
-│  Output  │ ←  │  Gates      │ ←  │  FFmpeg / MoviePy /      │
-│  File    │    │  (Qual/Sec) │    │  Plugin Renderer         │
-└──────────┘    └─────────────┘    └──────────────────────────┘
+genesis/
+├── dsl/
+│   ├── scene_parser.py        # DSL → scene graph
+│   ├── scene_schema.py        # Schema definitions
+│   └── scene_validator.py     # Pre-render validation
+├── plugins/
+│   ├── plugin_interface.py    # Plugin base class
+│   ├── plugin_loader.py       # Dynamic plugin loading
+│   ├── plugin_registry.py     # Plugin discovery
+│   ├── plugin_sandbox.py      # Isolated execution
+│   └── plugin_manifest_schema.py  # Manifest validation
+├── gates/
+│   ├── benchmark_gate.py      # Performance validation
+│   ├── credibility_gate.py    # Output quality checks
+│   ├── final_output_gate.py   # Pre-delivery verification
+│   ├── security_gate.py       # Safety validation
+│   └── reporting.py           # Gate result reporting
+├── fusion_mode/               # Rendering strategies
+├── native_inhouse/            # Native rendering backends
+└── validation/                # Input/output validation
 ```
 
-### DSL Module
-Scene schema, parser, and validator — turns text prompts into structured `Scene` objects.
+## DSL Example
 
-### Native Inhouse Pipeline
-Built-in planning engines for video, image, animation, editing, captions, upscaling, and interpolation. The `NativeRenderer` uses FFmpeg for actual video output.
-
-### Fusion Mode
-Combined pipeline that routes through native + optional plugin engines, tracks provenance, builds manifests, and passes through quality/security gates.
-
-### Plugins
-Plugin system with sandboxed execution, manifest validation, and directory-based discovery. Bundled plugins for editing (MoviePy), image generation (Diffusers), and video generation (Wan2.1).
-
-### Gates
-Four gates run before final output: Security (secrets scan, path safety, plugin isolation), Credibility (disclosure verification, output mode classification), Benchmark (duration, aspect ratio, caption readability), and Final Output Gate (aggregates all gates).
-
-## Quickstart
-
-```bash
-pip install genesis-media-engine
-
-# Ensure FFmpeg is on PATH (optional — plan-only mode works without it)
-# Render a scene
-python -m genesis plan "Create a 20 second intro in 9:16" --render output.mp4
-
-# Use the pipeline programmatically
-python
->>> from genesis.native_inhouse import InHousePipeline
->>> result = InHousePipeline().plan("Create a 10 second demo")
->>> result["scene"]["title"]
-'CODA OS Launch Intro'
+```yaml
+scene:
+  name: "product_reveal"
+  duration: 15
+  fps: 30
+  layers:
+    - type: video
+      source: "background.mp4"
+      trim: [0, 15]
+    - type: image
+      source: "product.png"
+      position: [0.5, 0.5]
+      animation:
+        type: scale
+        from: 0.0
+        to: 1.0
+        duration: 2.0
+    - type: text
+      content: "Introducing Product X"
+      font: "Arial Bold"
+      size: 48
+      animation:
+        type: fade_in
+        delay: 3.0
+  transitions:
+    - type: crossfade
+      duration: 1.0
 ```
 
 ## Plugin Development
 
-Plugins implement the `GenesisPlugin` protocol:
-
 ```python
-from genesis.plugins.plugin_interface import PluginManifest, GenesisPlugin
+from genesis.plugins.plugin_interface import PluginInterface
 
-class MyPlugin:
-    manifest = PluginManifest(
-        name="my_plugin",
-        capability="custom_effect",
-        license="MIT",
-        repo_url="https://github.com/me/my-plugin",
-    )
+class MyRenderer(PluginInterface):
+    name = "custom_renderer"
+    version = "1.0.0"
 
-    def health(self) -> dict:
-        return {"available": True}
+    def render(self, scene, output_path):
+        # Custom rendering logic
+        pass
 
-    def plan(self, payload: dict) -> dict:
-        return {"plugin": "my_plugin", "action": "custom_effect"}
+    def validate(self, scene):
+        # Pre-render validation
+        return True
 ```
 
-Place plugins in a directory and point `GENESIS_PLUGIN_DIR` at it — the loader discovers them automatically.
-
-## Render Dependencies
-
-- **FFmpeg** (optional): required only for video rendering. Install via `choco install ffmpeg` (Windows), `brew install ffmpeg` (macOS), or `apt install ffmpeg` (Linux).
-- **MoviePy** (optional): bundled plugin for Python-native rendering.
-
-Without FFmpeg, all planning and validation work. Rendering returns a useful error pointing to the missing dependency.
-
-## Testing
+## Development
 
 ```bash
+git clone https://github.com/Sachitt-AV-08/genesis-media-engine.git
+cd genesis-media-engine
 pip install -e ".[dev]"
-pytest
+python -m pytest tests/
 ```
+
+## License
+
+MIT
